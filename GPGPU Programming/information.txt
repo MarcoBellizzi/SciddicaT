@@ -1,0 +1,9 @@
+Number of multiprocessors -> 3 
+Max thread per block      -> 1024 
+Max threads dim 0         -> 1024 
+Max threads dim 1         -> 1024 
+Max threads dim 2         -> 64 
+Max grid side 0           -> 2147483647   // 2'31 -1
+Max grid size 1           -> 65535 
+Max grid size 2           -> 65535 
+Warp size                 -> 32 
