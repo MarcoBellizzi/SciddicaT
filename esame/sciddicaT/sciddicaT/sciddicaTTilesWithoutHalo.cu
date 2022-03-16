@@ -307,7 +307,7 @@ int main(int argc, char **argv)
   //int block_size = 512;
   //int number_of_blocks = ceil(r*c/block_size);
 
-  dim3 dimGrid(ceil(r/(float)(TILE_SIZE_O + 1), ceil(c/(float)(TILE_SIZE_O + 1)), 1);
+  dim3 dimGrid(ceil(r/(float)(TILE_SIZE_O + 1)), ceil(c/(float)(TILE_SIZE_O + 1)), 1);
   dim3 dimBlock(TILE_SIZE_O,TILE_SIZE_O,1);
 
   // Init kernel
