@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "../util.hpp"
+#include "util.hpp"
 #include <cuda.h>
 
 using namespace std;
