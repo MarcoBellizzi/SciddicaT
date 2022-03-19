@@ -23,6 +23,8 @@ using namespace std;
 #define ADJACENT_CELLS 4
 #define STRLEN 256
 
+#define BLOCK_SIZE 16
+
 // ----------------------------------------------------------------------------
 // Read/Write access macros linearizing single/multy layer buffer 2D indices
 // ----------------------------------------------------------------------------
@@ -117,9 +119,11 @@ double* addLayer2D(int rows, int columns)
 // ----------------------------------------------------------------------------
 __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double* Sh, int i_start, int i_end, int j_start, int j_end)
 {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;    //righe
-  int j = blockIdx.y * blockDim.y + threadIdx.y;    //colonne
+  // riga e colonna
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
 
+  // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end)
     return;
   if(j < j_start || j >= j_end)
@@ -140,14 +144,16 @@ __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double*
 // ----------------------------------------------------------------------------
 __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* Sf, int i_start, int i_end, int j_start, int j_end)
 {
+  // riga e colonna
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end)
     return;
   if(j < j_start || j >= j_end)
     return;
   
-  // Reset dei flussi
   BUF_SET(Sf, r, c, 0, i, j, 0.0);
   BUF_SET(Sf, r, c, 1, i, j, 0.0);
   BUF_SET(Sf, r, c, 2, i, j, 0.0);
@@ -160,13 +166,16 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
   bool again;
   int cells_count;
   double average;
-  double m;   // parte mobile (detrito)
-  double u[5];  // u[i] parte inamovibile (strato roccioso) della cella i
+  double m;
+  double u[5];
   int n;
   double z, h;
 
+  // riga e colonna
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end)
     return;
   if(j < j_start || j >= j_end)
@@ -187,14 +196,12 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
   h = GET(Sh, c, i + Xi[4], j + Xj[4]);
   u[4] = z + h;
 
-  // I passi 1 e 2 sono ripetuti finchè nessuna cella viene eliminata
   do
   {
     again = false;
     average = m;
     cells_count = 0;
 
-    // Passo 1: calcolo media delle celle non eliminate
     for (n = 0; n < 5; n++)
       if (!eliminated_cells[n])
       {
@@ -205,7 +212,6 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
     if (cells_count != 0)
       average /= cells_count;
 
-    // Passo 2: se u(i) >= average, la cella i viene eliminata
     for (n = 0; n < 5; n++)
       if ((average <= u[n]) && (!eliminated_cells[n]))
       {
@@ -214,7 +220,6 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
       }
   } while (again);
 
-  // Flusso dalla cella centrale verso l'i-esima cella vicina non eliminata:   q0(0,i) = average-u(i)
   if (!eliminated_cells[1]) BUF_SET(Sf, r, c, 0, i, j, (average - u[1]) * p_r);
   if (!eliminated_cells[2]) BUF_SET(Sf, r, c, 1, i, j, (average - u[2]) * p_r);
   if (!eliminated_cells[3]) BUF_SET(Sf, r, c, 2, i, j, (average - u[3]) * p_r);
@@ -223,8 +228,11 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
 
 __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi, int* Xj, double *Sz, double *Sh, double *Sf, int i_start, int i_end, int j_start, int j_end)
 {
+  // riga e colonna
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end)
     return;
   if(j < j_start || j >= j_end)
@@ -232,8 +240,6 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
   
   double h_next;
   h_next = GET(Sh, c, i, j);
-
-  // Aggiornamento dei flussi
   h_next += BUF_GET(Sf, r, c, 3, i+Xi[1], j+Xj[1]) - BUF_GET(Sf, r, c, 0, i, j);
   h_next += BUF_GET(Sf, r, c, 2, i+Xi[2], j+Xj[2]) - BUF_GET(Sf, r, c, 1, i, j);
   h_next += BUF_GET(Sf, r, c, 1, i+Xi[3], j+Xj[3]) - BUF_GET(Sf, r, c, 2, i, j);
@@ -287,9 +293,8 @@ int main(int argc, char **argv)
   loadGrid2D(Sz, r, c, argv[DEM_PATH_ID]);      // Load Sz from file
   loadGrid2D(Sh, r, c, argv[SOURCE_PATH_ID]);   // Load Sh from file
 
-  int block_size = 16;
-  dim3 dimGrid(ceil(r/(float)block_size), ceil(c/(float)block_size), 1);
-  dim3 dimBlock(block_size, block_size, 1);
+  dim3 dimGrid(ceil(r/(float)BLOCK_SIZE), ceil(c/(float)BLOCK_SIZE), 1);
+  dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, 1);
 
   // Init kernel
   sciddicaTSimulationInit_Kernel<<<dimGrid, dimBlock>>>(r, c, Sz, Sh, i_start, i_end, j_start, j_end);

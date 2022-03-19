@@ -23,6 +23,8 @@ using namespace std;
 #define ADJACENT_CELLS 4
 #define STRLEN 256
 
+#define BLOCK_SIZE 16
+
 // ----------------------------------------------------------------------------
 // Read/Write access macros linearizing single/multy layer buffer 2D indices
 // ----------------------------------------------------------------------------
@@ -104,6 +106,7 @@ bool saveGrid2Dr(double *M, int rows, int columns, char *path)
 // ----------------------------------------------------------------------------
 __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double* Sh, int i_start, int i_end, int j_start, int j_end)
 {
+  // riga e colonna, se il numero di thread è inferiore alla dimensione della matrice, il thread calcola più celle
   for(int i = blockIdx.x * blockDim.x + threadIdx.x; i < r; i += blockDim.x * gridDim.x)
   {
     for(int j = blockIdx.y * blockDim.y + threadIdx.y; j < c; j += blockDim.y * gridDim.y) 
@@ -130,6 +133,7 @@ __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double*
 // ----------------------------------------------------------------------------
 __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* Sf, int i_start, int i_end, int j_start, int j_end)
 {
+  // riga e colonna, se il numero di thread è inferiore alla dimensione della matrice, il thread calcola più celle
   for(int i = blockIdx.x * blockDim.x + threadIdx.x; i < r; i += blockDim.x * gridDim.x)
   {
     for(int j = blockIdx.y * blockDim.y + threadIdx.y; j < c; j += blockDim.y * gridDim.y)
@@ -149,6 +153,7 @@ __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* 
 
 __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, int* Xi, int* Xj, double *Sz, double *Sh, double *Sf, double p_r, double p_epsilon, int i_start, int i_end, int j_start, int j_end)
 {
+  // riga e colonna, se il numero di thread è inferiore alla dimensione della matrice, il thread calcola più celle
   for(int i = blockIdx.x * blockDim.x + threadIdx.x; i < r; i += blockDim.x * gridDim.x)
   {
     for(int j = blockIdx.y * blockDim.y + threadIdx.y; j < c; j += blockDim.y * gridDim.y) 
@@ -215,6 +220,7 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
 
 __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi, int* Xj, double *Sz, double *Sh, double *Sf, int i_start, int i_end, int j_start, int j_end)
 {
+  // riga e colonna, se il numero di thread è inferiore alla dimensione della matrice, il thread calcola più celle
   for(int i = blockIdx.x * blockDim.x + threadIdx.x; i < r; i += blockDim.x * gridDim.x)
   {
     for(int j = blockIdx.y * blockDim.y + threadIdx.y; j < c; j += blockDim.y * gridDim.y) 
@@ -282,9 +288,8 @@ int main(int argc, char **argv)
   loadGrid2D(Sz, r, c, argv[DEM_PATH_ID]);      // Load Sz from file
   loadGrid2D(Sh, r, c, argv[SOURCE_PATH_ID]);   // Load Sh from file
 
-  int block_size = 16;
-  dim3 dimGrid(ceil(r/(float)block_size), ceil(c/(float)block_size), 1);
-  dim3 dimBlock(block_size, block_size, 1);
+  dim3 dimGrid(ceil(r/(float)BLOCK_SIZE), ceil(c/(float)BLOCK_SIZE), 1);
+  dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, 1);
 
   // Init kernel
   sciddicaTSimulationInit_Kernel<<<dimGrid, dimBlock>>>(r, c, Sz, Sh, i_start, i_end, j_start, j_end);

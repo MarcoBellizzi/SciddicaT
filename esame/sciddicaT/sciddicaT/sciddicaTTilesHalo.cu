@@ -23,9 +23,8 @@ using namespace std;
 #define ADJACENT_CELLS 4
 #define STRLEN 256
 
-#define MASK_SIZE 3
 #define TILE_SIZE_O 7
-const int BLOCK_WIDTH = TILE_SIZE_O + MASK_SIZE-1;    //TILE_SIZE
+#define BLOCK_WIDTH 9
 
 // ----------------------------------------------------------------------------
 // Read/Write access macros linearizing single/multy layer buffer 2D indices
@@ -108,8 +107,11 @@ bool saveGrid2Dr(double *M, int rows, int columns, char *path)
 // ----------------------------------------------------------------------------
 __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double* Sh, int i_start, int i_end, int j_start, int j_end)
 {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;    //righe
-  int j = blockIdx.y * blockDim.y + threadIdx.y;    //colonne
+  // riga e colonna
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+  
+  // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end)
     return;
   if(j < j_start || j >= j_end)
@@ -130,8 +132,11 @@ __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double*
 // ----------------------------------------------------------------------------
 __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* Sf, int i_start, int i_end, int j_start, int j_end)
 {
+  // riga e colonna
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
+  
+  // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end)
     return;
   if(j < j_start || j >= j_end)
@@ -367,10 +372,8 @@ int main(int argc, char **argv)
   loadGrid2D(Sz, r, c, argv[DEM_PATH_ID]);    // Load Sz from file
   loadGrid2D(Sh, r, c, argv[SOURCE_PATH_ID]); // Load Sh from file
 
-  //int block_size = 512;
-  //int number_of_blocks = ceil(r*c/block_size);
-  dim3 dimGrid(ceil(r/(float)(TILE_SIZE_O + 1)), ceil(c/(float)(TILE_SIZE_O + 1)), 1);
-  dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH,1);
+  dim3 dimGrid(ceil(r/(float)(TILE_SIZE_O)), ceil(c/(float)(TILE_SIZE_O)), 1);
+  dim3 dimBlock(BLOCK_WIDTH, BLOCK_WIDTH, 1);
 
   // Init kernel
   sciddicaTSimulationInit_Kernel<<<dimGrid, dimBlock>>>(r, c, Sz, Sh, i_start, i_end, j_start, j_end);
