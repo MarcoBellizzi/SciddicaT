@@ -111,9 +111,7 @@ __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double*
   int j = blockIdx.y * blockDim.y + threadIdx.y;
   
   // se il thread non appartiene alla matrice
-  if(i < i_start || i >= i_end)
-    return;
-  if(j < j_start || j >= j_end)
+  if(i < i_start || i >= i_end || j < j_start || j >= j_end)
     return;
  
   double z, h;
@@ -136,9 +134,7 @@ __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* 
   int j = blockIdx.y * blockDim.y + threadIdx.y;
   
   // se il thread non appartiene alla matrice
-  if(i < i_start || i >= i_end)
-    return;
-  if(j < j_start || j >= j_end)
+  if(i < i_start || i >= i_end || j < j_start || j >= j_end)
     return;
 
   BUF_SET(Sf, r, c, 0, i, j, 0.0);
@@ -247,7 +243,7 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
 
   // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end || j < j_start || j >= j_end) {
-      __syncthreads();
+    __syncthreads();
     return;
   }
  
@@ -262,17 +258,17 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
   double h_next;
   h_next = GET(Sh, c, i, j);
 
-  for(int k = 1, k_inv = 3; k_inv >= 0; k++, k_inv = k_inv-1)
+  for(int k = 1; k < 5; k++)
   {
     // se il valore che voglio accedere è all'esterno del blocco lo prendo dalla memoria globale
     if(tx + Xi[k] < 0 || tx + Xi[k] >= TILE_SIZE_O || ty + Xj[k] < 0 || ty + Xj[k] >= TILE_SIZE_O)
     {
-      h_next += BUF_GET(Sf, r, c, k_inv, i+Xi[k], j+Xj[k]) - shared[tx][ty][k-1];
+      h_next += BUF_GET(Sf, r, c, 5-k-1, i+Xi[k], j+Xj[k]) - shared[tx][ty][k-1];
     }
     // altrimenti dalla matrice condivisa
     else
     {
-      h_next += shared[tx + Xi[k]][ty + Xj[k]][k_inv] - shared[tx][ty][k-1];
+      h_next += shared[tx + Xi[k]][ty + Xj[k]][5-k-1] - shared[tx][ty][k-1];
     }
   }
 

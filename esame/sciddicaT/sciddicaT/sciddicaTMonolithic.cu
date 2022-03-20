@@ -124,9 +124,7 @@ __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double*
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
   // se il thread non appartiene alla matrice
-  if(i < i_start || i >= i_end)
-    return;
-  if(j < j_start || j >= j_end)
+  if(i < i_start || i >= i_end || j < j_start || j >= j_end)
     return;
   
   double z, h;
@@ -149,9 +147,7 @@ __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* 
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
   // se il thread non appartiene alla matrice
-  if(i < i_start || i >= i_end)
-    return;
-  if(j < j_start || j >= j_end)
+  if(i < i_start || i >= i_end || j < j_start || j >= j_end)
     return;
   
   BUF_SET(Sf, r, c, 0, i, j, 0.0);
@@ -176,9 +172,7 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
   // se il thread non appartiene alla matrice
-  if(i < i_start || i >= i_end)
-    return;
-  if(j < j_start || j >= j_end)
+  if(i < i_start || i >= i_end || j < j_start || j >= j_end)
     return;
   
   m = GET(Sh, c, i, j) - p_epsilon;
@@ -233,9 +227,7 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
   // se il thread non appartiene alla matrice
-  if(i < i_start || i >= i_end)
-    return;
-  if(j < j_start || j >= j_end)
+  if(i < i_start || i >= i_end || j < j_start || j >= j_end)
     return;
   
   double h_next;

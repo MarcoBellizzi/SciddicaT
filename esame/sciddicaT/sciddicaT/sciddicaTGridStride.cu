@@ -24,6 +24,7 @@ using namespace std;
 #define STRLEN 256
 
 #define BLOCK_SIZE 16
+#define NUM_ITER 2
 
 // ----------------------------------------------------------------------------
 // Read/Write access macros linearizing single/multy layer buffer 2D indices
@@ -112,9 +113,8 @@ __global__ void sciddicaTSimulationInit_Kernel(int r, int c, double* Sz, double*
     for(int j = blockIdx.y * blockDim.y + threadIdx.y; j < c; j += blockDim.y * gridDim.y) 
     {
       double z, h;
-      if(i < i_start || i >= i_end)
-        continue;
-      if(j < j_start || j >= j_end)
+
+      if(i < i_start || i >= i_end || j < j_start || j >= j_end)
         continue;
       
       h = GET(Sh, c, i, j);
@@ -138,9 +138,7 @@ __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* 
   {
     for(int j = blockIdx.y * blockDim.y + threadIdx.y; j < c; j += blockDim.y * gridDim.y)
     {
-      if(i < i_start || i >= i_end)
-        continue;
-      if(j < j_start || j >= j_end)
+      if(i < i_start || i >= i_end || j < j_start || j >= j_end)
         continue;
       
       BUF_SET(Sf, r, c, 0, i, j, 0.0);
@@ -166,9 +164,8 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
       double u[5];
       int n;
       double z, h;
-      if(i < i_start || i >= i_end)
-        continue;
-      if(j < j_start || j >= j_end)
+
+      if(i < i_start || i >= i_end || j < j_start || j >= j_end)
         continue;
       
       m = GET(Sh, c, i, j) - p_epsilon;
@@ -226,9 +223,7 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
     for(int j = blockIdx.y * blockDim.y + threadIdx.y; j < c; j += blockDim.y * gridDim.y) 
     {
       double h_next;
-      if(i < i_start || i >= i_end)
-        continue;
-      if(j < j_start || j >= j_end)
+      if(i < i_start || i >= i_end || j < j_start || j >= j_end)
         continue;
 
       h_next = GET(Sh, c, i, j);
@@ -288,7 +283,7 @@ int main(int argc, char **argv)
   loadGrid2D(Sz, r, c, argv[DEM_PATH_ID]);      // Load Sz from file
   loadGrid2D(Sh, r, c, argv[SOURCE_PATH_ID]);   // Load Sh from file
 
-  dim3 dimGrid(ceil(r/(float)BLOCK_SIZE), ceil(c/(float)BLOCK_SIZE), 1);
+  dim3 dimGrid(ceil(r/(float)BLOCK_SIZE/NUM_ITER), ceil(c/(float)BLOCK_SIZE/NUM_ITER), 1);
   dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, 1);
 
   // Init kernel
