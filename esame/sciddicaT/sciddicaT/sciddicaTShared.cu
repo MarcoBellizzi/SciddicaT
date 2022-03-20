@@ -156,17 +156,21 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
   __shared__ double Sz_shared[BLOCK_SIZE][BLOCK_SIZE];
   __shared__ double Sh_shared[BLOCK_SIZE][BLOCK_SIZE];
 
-  // se il thread non appartiene alla matrice
-  if(i < i_start || i >= i_end || j < j_start || j >= j_end) {
-      __syncthreads();
-      return;
+  // ogni thread copia i propri valori all'interno delle matrici
+  if (i < r && j < c) {
+    Sz_shared[tx][ty] = GET(Sz, c, i, j);
+    Sh_shared[tx][ty] = GET(Sh, c, i, j);
+  } else {
+    Sz_shared[tx][ty] = 0.0;
+    Sh_shared[tx][ty] = 0.0;
   }
 
-  // ogni thread copia i propri valori all'interno delle matrici
-  Sz_shared[tx][ty] = GET(Sz, c, i, j);
-  Sh_shared[tx][ty] = GET(Sh, c, i, j);
-
   __syncthreads();
+
+  // se il thread non appartiene alla matrice
+  if(i < i_start || i >= i_end || j < j_start || j >= j_end) {
+      return;
+  }
   
   bool eliminated_cells[5] = {false, false, false, false, false};
   bool again;
@@ -241,20 +245,26 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
   // creo quattro matrici condivise tra i blocchi
   __shared__ double shared[BLOCK_SIZE][BLOCK_SIZE][4];
 
+  // ogni thread copia i propri valori all'interno delle matrici
+  if (i < r && j < c) {
+    shared[tx][ty][0] = BUF_GET(Sf, r, c, 0, i, j);
+    shared[tx][ty][1] = BUF_GET(Sf, r, c, 1, i, j);
+    shared[tx][ty][2] = BUF_GET(Sf, r, c, 2, i, j);
+    shared[tx][ty][3] = BUF_GET(Sf, r, c, 3, i, j);
+  } else {
+    shared[tx][ty][0] = 0.0;
+    shared[tx][ty][1] = 0.0;
+    shared[tx][ty][2] = 0.0;
+    shared[tx][ty][3] = 0.0;
+  }
+
+  __syncthreads();
+
   // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end || j < j_start || j >= j_end) {
-    __syncthreads();
     return;
   }
  
-  // ogni thread copia i propri valori all'interno delle matrici
-  shared[tx][ty][0] = BUF_GET(Sf, r, c, 0, i, j);
-  shared[tx][ty][1] = BUF_GET(Sf, r, c, 1, i, j);
-  shared[tx][ty][2] = BUF_GET(Sf, r, c, 2, i, j);
-  shared[tx][ty][3] = BUF_GET(Sf, r, c, 3, i, j);
-
-  __syncthreads();
-  
   double h_next;
   h_next = GET(Sh, c, i, j);
 
