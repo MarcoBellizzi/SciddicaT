@@ -23,7 +23,7 @@ using namespace std;
 #define ADJACENT_CELLS 4
 #define STRLEN 256
 
-#define TILE_SIZE_O 10
+#define TILE_SIZE_O 16
 
 // ----------------------------------------------------------------------------
 // Read/Write access macros linearizing single/multy layer buffer 2D indices
