@@ -23,10 +23,10 @@ using namespace std;
 #define ADJACENT_CELLS 4
 #define STRLEN 256
 
-#define TILE_SIZE_O 16
+#define BLOCK_SIZE 16
 
 // ----------------------------------------------------------------------------
-// Read/Write access macros linearizing single/multy layer buffer 2D indices
+// Read/Write access macros linearizing single/multhreadIdx.y layer buffer 2D indices
 // ----------------------------------------------------------------------------
 #define SET(M, columns, i, j, value) ((M)[(((i) * (columns)) + (j))] = (value))
 #define GET(M, columns, i, j) (M[(((i) * (columns)) + (j))])
@@ -145,16 +145,13 @@ __global__ void sciddicaTResetFlows_Kernel(int r, int c, double nodata, double* 
 
 __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, int* Xi, int* Xj, double *Sz, double *Sh, double *Sf, double p_r, double p_epsilon, int i_start, int i_end, int j_start, int j_end)
 {
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-
   // riga e colonna
-  int i = blockIdx.x * TILE_SIZE_O + tx;
-  int j = blockIdx.y * TILE_SIZE_O + ty;
+  int i = blockIdx.x * BLOCK_SIZE + threadIdx.x;
+  int j = blockIdx.y * BLOCK_SIZE + threadIdx.y;
 
   // creo due matrici condivise tra i blocchi
-  __shared__ double Sz_shared[TILE_SIZE_O][TILE_SIZE_O];
-  __shared__ double Sh_shared[TILE_SIZE_O][TILE_SIZE_O];
+  __shared__ double Sz_shared[BLOCK_SIZE][BLOCK_SIZE];
+  __shared__ double Sh_shared[BLOCK_SIZE][BLOCK_SIZE];
 
   // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end || j < j_start || j >= j_end) {
@@ -163,8 +160,8 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
   }
 
   // ogni thread copia i propri valori all'interno delle matrici
-  Sz_shared[tx][ty] = GET(Sz, c, i, j);
-  Sh_shared[tx][ty] = GET(Sh, c, i, j);
+  Sz_shared[threadIdx.x][threadIdx.y] = GET(Sz, c, i, j);
+  Sh_shared[threadIdx.x][threadIdx.y] = GET(Sh, c, i, j);
 
   __syncthreads();
   
@@ -177,13 +174,13 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
   int n;
   double z, h;
 
-  m = Sh_shared[tx][ty] - p_epsilon;
-  u[0] = Sz_shared[tx][ty] + p_epsilon;
+  m = Sh_shared[threadIdx.x][threadIdx.y] - p_epsilon;
+  u[0] = Sz_shared[threadIdx.x][threadIdx.y] + p_epsilon;
 
   for(int k = 1; k < 5; k++)
   {
     // se il valore che voglio accedere è all'esterno del blocco lo prendo dalla memoria globale
-    if(tx + Xi[k] < 0 || tx + Xi[k] >= TILE_SIZE_O || ty + Xj[k] < 0 || ty + Xj[k] >= TILE_SIZE_O)
+    if(threadIdx.x + Xi[k] < 0 || threadIdx.x + Xi[k] >= BLOCK_SIZE || threadIdx.y + Xj[k] < 0 || threadIdx.y + Xj[k] >= BLOCK_SIZE)
     {
       z = GET(Sz, c, i + Xi[k], j + Xj[k]);
       h = GET(Sh, c, i + Xi[k], j + Xj[k]);
@@ -191,8 +188,8 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
     // altrimenti dalla matrice condivisa
     else
     {
-      z = Sz_shared[tx + Xi[k]][ty + Xj[k]];
-      h = Sh_shared[tx + Xi[k]][ty + Xj[k]];
+      z = Sz_shared[threadIdx.x + Xi[k]][threadIdx.y + Xj[k]];
+      h = Sh_shared[threadIdx.x + Xi[k]][threadIdx.y + Xj[k]];
     }  
     u[k] = z + h;
   }
@@ -231,15 +228,12 @@ __global__ void sciddicaTFlowsComputation_Kernel(int r, int c, double nodata, in
 
 __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi, int* Xj, double *Sz, double *Sh, double *Sf, int i_start, int i_end, int j_start, int j_end)
 {
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-  
   // riga e colonna
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   int j = blockIdx.y * blockDim.y + threadIdx.y;
 
   // creo quattro matrici condivise tra i blocchi
-  __shared__ double shared[TILE_SIZE_O][TILE_SIZE_O][4];
+  __shared__ double shared[BLOCK_SIZE][BLOCK_SIZE][4];
 
   // se il thread non appartiene alla matrice
   if(i < i_start || i >= i_end || j < j_start || j >= j_end) {
@@ -248,10 +242,10 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
   }
  
   // ogni thread copia i propri valori all'interno delle matrici
-  shared[tx][ty][0] = BUF_GET(Sf, r, c, 0, i, j);
-  shared[tx][ty][1] = BUF_GET(Sf, r, c, 1, i, j);
-  shared[tx][ty][2] = BUF_GET(Sf, r, c, 2, i, j);
-  shared[tx][ty][3] = BUF_GET(Sf, r, c, 3, i, j);
+  shared[threadIdx.x][threadIdx.y][0] = BUF_GET(Sf, r, c, 0, i, j);
+  shared[threadIdx.x][threadIdx.y][1] = BUF_GET(Sf, r, c, 1, i, j);
+  shared[threadIdx.x][threadIdx.y][2] = BUF_GET(Sf, r, c, 2, i, j);
+  shared[threadIdx.x][threadIdx.y][3] = BUF_GET(Sf, r, c, 3, i, j);
 
   __syncthreads();
   
@@ -261,14 +255,14 @@ __global__ void sciddicaTWidthUpdate_Kernel(int r, int c, double nodata, int* Xi
   for(int k = 1; k < 5; k++)
   {
     // se il valore che voglio accedere è all'esterno del blocco lo prendo dalla memoria globale
-    if(tx + Xi[k] < 0 || tx + Xi[k] >= TILE_SIZE_O || ty + Xj[k] < 0 || ty + Xj[k] >= TILE_SIZE_O)
+    if(threadIdx.x + Xi[k] < 0 || threadIdx.x + Xi[k] >= BLOCK_SIZE || threadIdx.y + Xj[k] < 0 || threadIdx.y + Xj[k] >= BLOCK_SIZE)
     {
-      h_next += BUF_GET(Sf, r, c, 5-k-1, i+Xi[k], j+Xj[k]) - shared[tx][ty][k-1];
+      h_next += BUF_GET(Sf, r, c, 5-k-1, i+Xi[k], j+Xj[k]) - shared[threadIdx.x][threadIdx.y][k-1];
     }
     // altrimenti dalla matrice condivisa
     else
     {
-      h_next += shared[tx + Xi[k]][ty + Xj[k]][5-k-1] - shared[tx][ty][k-1];
+      h_next += shared[threadIdx.x + Xi[k]][threadIdx.y + Xj[k]][5-k-1] - shared[threadIdx.x][threadIdx.y][k-1];
     }
   }
 
@@ -320,8 +314,8 @@ int main(int argc, char **argv)
   loadGrid2D(Sz, r, c, argv[DEM_PATH_ID]);    // Load Sz from file
   loadGrid2D(Sh, r, c, argv[SOURCE_PATH_ID]); // Load Sh from file
 
-  dim3 dimGrid(ceil(r/(float)(TILE_SIZE_O)), ceil(c/(float)(TILE_SIZE_O)), 1);
-  dim3 dimBlock(TILE_SIZE_O, TILE_SIZE_O, 1);
+  dim3 dimGrid(ceil(r/(float)(BLOCK_SIZE)), ceil(c/(float)(BLOCK_SIZE)), 1);
+  dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE, 1);
 
   // Init kernel
   sciddicaTSimulationInit_Kernel<<<dimGrid, dimBlock>>>(r, c, Sz, Sh, i_start, i_end, j_start, j_end);
